@@ -1,5 +1,5 @@
 
-![[Pasted image 20230706105700.png]]
+![1](https://raw.githubusercontent.com/sakilohale/unity-Decal/main/Decal/images/1.png)
 
 主要原理：
 - 在顶点着色器中，在相机坐标系（view space）得到相机中心坐标以及相机到顶点的射线，然后将两者都变换到物体的模型空间下，后者（射线向量）传入片元着色器会插值为相机到该片元的射线（同相机法重建世界坐标）。
@@ -16,11 +16,14 @@
 ## 陡峭平面问题
 
 首先是这种，产生原因在于投射器本身与物体产生了在物理上真实但视觉上错误的相交面。例如这里cube投射器和同方向与地面夹角小于90度的物体之间就会产生这种错误，解决办法可以旋转投射器或者不应用在这种场景。
-![[Pasted image 20230706120102.png]]
+
+![2](https://raw.githubusercontent.com/sakilohale/unity-Decal/main/Decal/images/2.png)
 
 
 其次，陡峭的平面会导致贴花剧烈的拉伸。
-![[Pasted image 20230706114015.png]]
+
+![3](https://raw.githubusercontent.com/sakilohale/unity-Decal/main/Decal/images/3.png)
+
 这是因为：
 1. （次要）相交面过大，导致uv欠采样。
 2. （主要）两个相交面之间夹角过小（90到180，越接近90），例如极端情况两个相交面垂直时，用于采样贴图的xz坐标在垂直的相交面上y轴方向采样的颜色值都是一样的，所以会出现这种拉伸的感觉。
@@ -29,11 +32,21 @@
 
 相交片元在模型空间下的法线向量是对应了模型空间坐标轴的z轴的，也就是模型空间下的xyz对应着tbn，那么就可以用该片元相对于xy两轴的偏导数来得到tb两向量的方向，然后做内积单位化得到相交片元的单位法向量，最后用该法向量的y分量来近似坡面坡度来生成mask。
 
-![[Pasted image 20230706131819.png]]
+```
+		float mask=(abs(decalPos.x)<0.5?1:0)*(abs(decalPos.y)<0.5?1:0)*(abs(decalPos.z)<0.5?1:0);
 
-![[Pasted image 20230706131832.png]]
+                float3 decalNormal=normalize(cross(ddy(decalPos),ddx(decalPos)));
+
+                //return float4(decalNormal,1);
+
+                mask*=decalNormal.y>0.2*_EdgeStretchPrevent?1:0;//边缘拉伸的防止阈值
+```
+
+![4](https://raw.githubusercontent.com/sakilohale/unity-Decal/main/Decal/images/4.png)
+
 这样坡度超过了的就会被遮住了，下面是正常的坡度，拉伸并不严重不影响观感。
-![[Pasted image 20230706131920.png]]
+
+![5](https://raw.githubusercontent.com/sakilohale/unity-Decal/main/Decal/images/5.png)
 
 
 这种方法的好处在于简单方便，一个shader就搞定了，缺点就在于算法本质带来的陡峭平面问题，不过用在大部分以平面为主的场景还是绰绰有余了。
@@ -42,7 +55,8 @@
 ## 不正确遮挡问题
 
 例如，我们希望控制人物在其上行走时，贴花不会贴到人物身上。一般而言会用到模板测试。
-![[Pasted image 20230706133058.png]]
+
+![6](https://raw.githubusercontent.com/sakilohale/unity-Decal/main/Decal/images/6.png)
 
 例如给贴花shader设置如下模板测试：
 
